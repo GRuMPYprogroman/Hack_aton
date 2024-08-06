@@ -1,0 +1,54 @@
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/range.hpp>
+#include <wiringPi.h>
+
+class UltrasonicNode : public rclcpp::Node
+{
+public:
+    UltrasonicNode() : Node("ultrasonic_node"), trigger_pin_(7), echo_pin_(0)
+    {
+        wiringPiSetup();
+        pinMode(trigger_pin_, OUTPUT);
+        pinMode(echo_pin_, INPUT);
+
+        range_pub_ = this->create_publisher<sensor_msgs::msg::Range>("ultrasonic_range", 10);
+        timer_ = this->create_wall_timer(
+            500ms, std::bind(&UltrasonicNode::publish_range, this));
+    }
+
+private:
+    void publish_range()
+    {
+        digitalWrite(trigger_pin_, LOW);
+        rclcpp::sleep_for(std::chrono::microseconds(2));
+        digitalWrite(trigger_pin_, HIGH);
+        rclcpp::sleep_for(std::chrono::microseconds(10));
+        digitalWrite(trigger_pin_, LOW);
+
+        while (digitalRead(echo_pin_) == LOW);
+        auto start_time = this->now();
+
+        while (digitalRead(echo_pin_) == HIGH);
+        auto end_time = this->now();
+
+        double duration = (end_time - start_time).seconds();
+        double distance = duration * 17150;  // Convert time to distance
+
+        auto msg = sensor_msgs::msg::Range();
+        msg.range = distance / 100;  // Convert cm to meters
+        range_pub_->publish(msg);
+    }
+
+    rclcpp::Publisher<sensor_msgs::msg::Range>::SharedPtr range_pub_;
+    rclcpp::TimerBase::SharedPtr timer_;
+    int trigger_pin_;
+    int echo_pin_;
+};
+
+int main(int argc, char *argv[])
+{
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<UltrasonicNode>());
+    rclcpp::shutdown();
+    return 0;
+}

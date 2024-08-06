@@ -1,0 +1,45 @@
+#include rclcpprclcpp.hpp
+#include sensor_msgsmsglaser_scan.hpp
+#include geometry_msgsmsgtwist.hpp
+
+class LidarNode  public rclcppNode
+{
+public
+    LidarNode()  Node(lidar_node), linear_speed_(0.2), angular_speed_(0.5)
+    {
+        cmd_vel_pub_ = this-create_publishergeometry_msgsmsgTwist(cmd_vel, 10);
+        scan_sub_ = this-create_subscriptionsensor_msgsmsgLaserScan(
+            scan, 10, stdbind(&LidarNodescan_callback, this, stdplaceholders_1));
+    }
+
+private
+    void scan_callback(const sensor_msgsmsgLaserScanSharedPtr msg)
+    {
+        auto ranges = msg-ranges;
+        auto min_range = stdmin_element(ranges.begin(), ranges.end());
+
+        auto move_cmd = geometry_msgsmsgTwist();
+        if (min_range  0.5)
+        {
+            move_cmd.angular.z = angular_speed_;
+        }
+        else
+        {
+            move_cmd.linear.x = linear_speed_;
+        }
+        cmd_vel_pub_-publish(move_cmd);
+    }
+
+    rclcppPublishergeometry_msgsmsgTwistSharedPtr cmd_vel_pub_;
+    rclcppSubscriptionsensor_msgsmsgLaserScanSharedPtr scan_sub_;
+    double linear_speed_;
+    double angular_speed_;
+};
+
+int main(int argc, char argv[])
+{
+    rclcppinit(argc, argv);
+    rclcppspin(stdmake_sharedLidarNode());
+    rclcppshutdown();
+    return 0;
+}

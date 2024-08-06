@@ -1,0 +1,63 @@
+#include <rclcpp/rclcpp.hpp>
+#include <opencv2/opencv.hpp>
+#include <opencv2/aruco.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <cv_bridge/cv_bridge.h>
+#include <geometry_msgs/msg/twist.hpp>
+
+class CameraNode : public rclcpp::Node
+{
+public:
+    CameraNode() : Node("camera_node"), linear_speed_(0.2), angular_speed_(0.5)
+    {
+        cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
+        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "camera/image_raw", 10, std::bind(&CameraNode::image_callback, this, std::placeholders::_1));
+        dictionary_ = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+    }
+
+private:
+    void image_callback(const sensor_msgs::msg::Image::SharedPtr msg)
+    {
+        cv::Mat frame = cv_bridge::toCvShare(msg, "bgr8")->image;
+        std::vector<int> ids;
+        std::vector<std::vector<cv::Point2f>> corners;
+        cv::aruco::detectMarkers(frame, dictionary_, corners, ids);
+
+        if (!ids.empty())
+        {
+            cv::aruco::drawDetectedMarkers(frame, corners, ids);
+            navigate_to_marker(corners[0]);
+        }
+        else
+        {
+            move_straight();
+        }
+    }
+
+    void move_straight()
+    {
+        auto move_cmd = geometry_msgs::msg::Twist();
+        move_cmd.linear.x = linear_speed_;
+        cmd_vel_pub_->publish(move_cmd);
+    }
+
+    void navigate_to_marker(const std::vector<cv::Point2f>& marker)
+    {
+        // Логика навигации к метке
+    }
+
+    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
+    cv::Ptr<cv::aruco::Dictionary> dictionary_;
+    double linear_speed_;
+    double angular_speed_;
+};
+
+int main(int argc, char *argv[])
+{
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<CameraNode>());
+    rclcpp::shutdown();
+    return 0;
+}
